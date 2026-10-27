@@ -1,0 +1,1 @@
+loadstring(game:HttpGet("https://gist.githubusercontent.com/tetomidi-lua/b85a0a2c9be4c09c4ae8f0c0cc4bacdf/raw/main.lua"))()
