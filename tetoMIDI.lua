@@ -16,8 +16,8 @@ local CoreGui = game:GetService("CoreGui")
 local TextService = game:GetService("TextService")
 
 -- ====================== CẤU HÌNH GITHUB ======================
-local GITHUB_USER = "tetomidi-lua"
-local GITHUB_REPO = "lua-midi"
+local GITHUB_USER = "talentless-custom-song"
+local GITHUB_REPO = "hu"
 
 -- Link server Discord (bấm logo Discord sẽ copy link này)
 local DISCORD_LINK = "https://discord.gg/peaqm6uqgB"
