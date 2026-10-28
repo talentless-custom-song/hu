@@ -25,7 +25,7 @@ local GITHUB_REPO = "hu"
 local DISCORD_LINK = "https://discord.gg/peaqm6uqgB"
 
 -- Server midi2lua hub (hub_server trên PythonAnywhere): bot Discord upload bài lên đây qua API
-local HUB_API = "https://tetomidi.pythonanywhere.com"
+local HUB_API = "https://midi2lua.pythonanywhere.com"
 local HUB_DIR = "tetoMIDI/hub"
 
 local IMAGE_DIR = "tetoMIDI/images"
