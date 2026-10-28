@@ -1,0 +1,1 @@
+loadstring(game:HttpGet("https://gist.github.com/talentless-custom-song/54c30ecaae883c3e7fbccb8ac87ecff6/raw/ad5afc26aafd0bda9bcc948a134ae22c8788cb87/tetomidi.lua"))()
