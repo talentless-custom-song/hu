@@ -2791,13 +2791,17 @@ function createMainUI()
         return b
     end
 
-    local function createPlayerPage(mode)
+    -- opts.isolated = true: bản riêng (preview của hub). Có config, file và trạng thái riêng,
+    -- không ghi vào Cfg của piano player và không đụng tới players.piano.
+    local function createPlayerPage(mode, opts)
+        local isolated = opts and opts.isolated or false
+        local key = (opts and opts.key) or mode
         local P = {mode = mode, state = "stopped", pos = 0, length = 0, speed = 1, song = nil, notes = {}, name = ""}
-        local C = Cfg[mode]
-        players[mode] = P
+        local C = isolated and {k88 = true, sustain = false, velocity = false, noteLengths = true, loop = false, file = ""} or Cfg[mode]
+        players[key] = P
 
         local page = Instance.new("Frame")
-        page.Name = "Page_" .. mode
+        page.Name = "Page_" .. key
         page.Size = UDim2.new(1, 0, 1, 0)
         page.BackgroundTransparency = 1
         page.Visible = false
@@ -2810,6 +2814,20 @@ function createMainUI()
         fileBtn.TextTruncate = Enum.TextTruncate.AtEnd
         hoverGlass(fileBtn, filePill)
         bindClick(fileBtn)
+
+        -- Bản preview của hub: nút quay lại trang hub ở góc phải
+        if isolated then
+            filePill.Size = UDim2.new(1, -124, 0, 26)
+            local backPill = makePill(page, UDim2.new(0, 96, 0, 26), UDim2.new(1, -108, 0, 8))
+            local backBtn = makeTextButton(backPill, "< hub", 12, Enum.Font.GothamMedium)
+            hoverGlass(backBtn, backPill)
+            bindClick(backBtn)
+            backBtn.MouseButton1Click:Connect(function()
+                pressAnim(backPill)
+                CurrentPage = "hub"
+                updatePages()
+            end)
+        end
 
         -- Hàng nút bật/tắt (88 key / Sustain / Velocity / Note length / Loop)
         local opts = PLAYER_OPTIONS[mode]
@@ -2863,7 +2881,7 @@ function createMainUI()
                 pressAnim(pill)
                 C[o[2]] = not C[o[2]]
                 paintChip(o[2])
-                saveCfg()
+                if not isolated then saveCfg() end
                 if o[2] == "k88" or o[2] == "noteLengths" then
                     rebuildRoll()
                 elseif o[2] == "velocity" then
@@ -3175,7 +3193,7 @@ function createMainUI()
         end)
 
         -- ===== Nạp file MIDI =====
-        function P.loadPath(path, quiet)
+        function P.loadPath(path, quiet, autoplay)
             roll.setCaption("Loading...")
             task.spawn(function()
                 local ok, data = pcall(readfile, path)
@@ -3197,11 +3215,12 @@ function createMainUI()
                 P.engine.load(song)
                 P.name = tostring(path):match("[^/\\]+$") or tostring(path)
                 C.file = path
-                saveCfg()
+                if not isolated then saveCfg() end
                 setFileText()
                 rebuildRoll()
                 roll.setCaption(string.format("%s  ·  %s  ·  %d notes", PLAYER_CAPTION[mode], Core.formatTime(song.length), #P.notes))
                 updateBar()
+                if autoplay then P.play() end
             end)
         end
 
@@ -3210,7 +3229,7 @@ function createMainUI()
         updateBar()
 
         -- Mở lại file đã dùng lần trước
-        if C.file and C.file ~= "" then
+        if not isolated and C.file and C.file ~= "" then
             task.spawn(function()
                 local exists = false
                 pcall(function() exists = isfile and isfile(C.file) end)
@@ -3225,6 +3244,9 @@ function createMainUI()
     createPlayerPage("drums")
     createPlayerPage("guitar")
 
+    -- Preview riêng cho midi hub: piano roll + engine phím, có config/trạng thái riêng (không chung với piano player)
+    local hubPreview = createPlayerPage("piano", {isolated = true, key = "hubpreview"})
+
     -- Báo lỗi 1 lần nếu executor không gửi được phím (không có VirtualInputManager lẫn keypress)
     Core.Keys.onError = function(msg) showToast(msg) end
 
@@ -3233,7 +3255,23 @@ function createMainUI()
         Core.Keys.pump()   -- gửi phím đã xếp hàng vào game (xem khối ENGINE)
     end)
 
-    -- Chạy 1 script midi2lua (hub hiện vẫn dùng, sẽ đổi sang MIDI ở bước sau)
+    -- Tải file .mid của bài hub về tetoMIDI/midi (không ghi đè file cũ). Trả về đường dẫn hoặc nil.
+    local function hubSaveMidi(song, name)
+        if not (writefile and readfile) then return nil end
+        local body = hubGet(song.hub.url .. "/api/songs/" .. tostring(song.id) .. "/midi", 3)
+        if type(body) ~= "string" or body:sub(1, 4) ~= "MThd" then return nil end
+        pcall(function()
+            if isfolder and not isfolder("tetoMIDI") then makefolder("tetoMIDI") end
+            if isfolder and not isfolder(MIDI_DIR) then makefolder(MIDI_DIR) end
+        end)
+        local safe = tostring(name or "song"):gsub("[\\/:*?\"<>|]", "_"):sub(1, 60)
+        local key = tostring(song.key):gsub("[^%w_%-]", "_")
+        local path = MIDI_DIR .. "/" .. safe .. "-" .. key .. ".mid"
+        if pcall(writefile, path, body) then return path end
+        return nil
+    end
+
+    -- Chạy 1 script midi2lua (không còn dùng cho nút Play của hub, giữ lại để tham khảo)
     local function playScript(name, script)
         if _G.songisplaying then
             showToast("A song is already playing")
@@ -3419,18 +3457,19 @@ function createMainUI()
 
                 playB.MouseButton1Click:Connect(function()
                     pressAnim(playP)
-                    if _G.songisplaying then
-                        showToast("A song is already playing")
-                        return
-                    end
                     showToast("Downloading...")
                     task.spawn(function()
-                        local script = hubFetchScript(song)
-                        if not script then
+                        -- Lưu .mid vào tetoMIDI/midi, mở trong piano player (có piano roll) và phát luôn
+                        local path = hubSaveMidi(song, songName)
+                        if not path then
                             showToast("Download failed")
                             return
                         end
-                        playScript(songName, script)
+                        -- Không để piano player và preview cùng gửi phím một lúc
+                        if players.piano then players.piano.stopPlayback(true) end
+                        CurrentPage = "hubpreview"
+                        updatePages()
+                        hubPreview.loadPath(path, false, true)
                     end)
                 end)
             end
