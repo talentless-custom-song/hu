@@ -1,7 +1,7 @@
 -- tetoMIDI loader (dán đoạn này vào executor)
 -- Gist: tetomidi-lua / main.lua
 local GIST_USER = "talentless-custom-song"
-local GIST_ID   = "d140432252190f6fc4abf65d938cde4c1db70db9"
+local GIST_ID   = "da5998733ba58b59b5b22767d186258759b52646"
 
 local url = ("https://gist.githubusercontent.com/%s/%s/raw/main.lua"):format(GIST_USER, GIST_ID)
 
